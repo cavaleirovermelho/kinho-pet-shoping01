@@ -5,15 +5,16 @@ import {
   User, Bell, Plus, Edit, Trash2, MapPin, X, ChevronLeft, 
   CheckCircle2, ShoppingCart, Star, LogOut, Camera, Clock, Save,
   Check, Store, UserCheck, Scissors, ArrowRight, Search, Heart,
-  PlusCircle, LayoutDashboard
+  PlusCircle, LayoutDashboard, Share2, Copy
 } from 'lucide-react';
 import { Booking, Product, UserRole } from './types';
 
 // Chaves de armazenamento persistente
 const STORAGE_KEYS = {
-  ADMINS: 'kinho_pet_admins_v3',
-  CURRENT_SESSION: 'kinho_pet_session_v3',
-  DATA_PREFIX: 'kinho_data_v3_'
+  ADMINS: 'kinho_pet_admins_v4',
+  CURRENT_SESSION: 'kinho_pet_session_v4',
+  CUSTOMER_DATA: 'kinho_customer_profile_v4',
+  DATA_PREFIX: 'kinho_data_v4_'
 };
 
 export default function App() {
@@ -27,14 +28,31 @@ export default function App() {
   const [availableTimes, setAvailableTimes] = useState<string[]>(["08:00", "09:00", "10:00", "11:00", "14:00", "15:00", "16:00", "17:00"]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
+  // Inicialização e Carregamento de Sessão (Dono ou Cliente)
   useEffect(() => {
     if (currentScreen === 'splash') {
       const timer = setTimeout(() => {
-        const session = localStorage.getItem(STORAGE_KEYS.CURRENT_SESSION);
-        if (session) {
-          const admin = JSON.parse(session);
+        const adminSession = localStorage.getItem(STORAGE_KEYS.CURRENT_SESSION);
+        const customerSession = localStorage.getItem(STORAGE_KEYS.CUSTOMER_DATA);
+
+        if (adminSession) {
+          const admin = JSON.parse(adminSession);
           loadShopData(admin, 'owner');
           setCurrentScreen('home');
+        } else if (customerSession) {
+          const profile = JSON.parse(customerSession);
+          // Tenta encontrar a loja no registro local
+          const admins = JSON.parse(localStorage.getItem(STORAGE_KEYS.ADMINS) || '[]');
+          const shop = admins.find((a: any) => a.user === profile.shopId);
+          
+          if (shop) {
+            setUserName(profile.userName);
+            setPetName(profile.petName);
+            loadShopData(shop, 'customer');
+            setCurrentScreen('home');
+          } else {
+            setCurrentScreen('login');
+          }
         } else {
           setCurrentScreen('login');
         }
@@ -68,12 +86,24 @@ export default function App() {
     }
   };
 
+  // Persiste dados do cliente sempre que mudar
+  useEffect(() => {
+    if (userRole === 'customer' && activeAdmin) {
+      localStorage.setItem(STORAGE_KEYS.CUSTOMER_DATA, JSON.stringify({
+        userName,
+        petName,
+        shopId: activeAdmin.user
+      }));
+    }
+  }, [userName, petName, activeAdmin, userRole]);
+
   useEffect(() => {
     if (activeAdmin) persistShopData();
   }, [products, bookings, availableTimes]);
 
   const handleLogout = () => {
     localStorage.removeItem(STORAGE_KEYS.CURRENT_SESSION);
+    localStorage.removeItem(STORAGE_KEYS.CUSTOMER_DATA);
     setUserRole('customer');
     setActiveAdmin(null);
     setUserName('');
@@ -89,15 +119,13 @@ export default function App() {
     return `${d.slice(0, 2)}:${d.slice(2, 4)}`;
   };
 
-  // --- TELAS ---
-
   const SplashScreen = () => (
     <div className="h-screen flex flex-col items-center justify-center p-8 bg-[#0F172A] animate-pulse">
       <div className="w-48 h-48 bg-[#22C55E]/10 rounded-full flex items-center justify-center mb-8 border-4 border-[#22C55E]/20">
         <PawPrint size={80} className="text-[#22C55E]" />
       </div>
       <h1 className="text-4xl font-black text-white text-center">Kinho <span className="text-[#22C55E]">Pet Shop</span></h1>
-      <p className="text-slate-400 mt-2 font-light italic">Sua plataforma pet profissional</p>
+      <p className="text-slate-400 mt-2 font-light italic">Carregando sua sessão...</p>
     </div>
   );
 
@@ -110,35 +138,36 @@ export default function App() {
 
     const handleCustomerJoin = () => {
       setError('');
-      if (!cUser.shopId) return setError('Qual o ID do Pet Shop?');
+      if (!cUser.shopId) return setError('Qual o ID da loja?');
       const admins = JSON.parse(localStorage.getItem(STORAGE_KEYS.ADMINS) || '[]');
       const targetShop = admins.find((a: any) => a.user.toLowerCase() === cUser.shopId.toLowerCase());
+      
       if (targetShop) {
-        setUserName(cUser.name || 'Visitante');
+        setUserName(cUser.name || 'Cliente');
         setPetName(cUser.pet || 'Pet');
         loadShopData(targetShop, 'customer');
         setCurrentScreen('home');
       } else {
-        setError('Pet Shop não encontrado! Verifique o ID com o dono.');
+        setError('Loja não encontrada. Peça o ID correto ao dono!');
       }
     };
 
     const handleAdminRegister = (e: React.FormEvent) => {
       e.preventDefault();
-      setError('');
       const admins = JSON.parse(localStorage.getItem(STORAGE_KEYS.ADMINS) || '[]');
-      if (admins.find((a: any) => a.user === aReg.user)) return setError('Este ID de Usuário já existe.');
+      if (admins.find((a: any) => a.user === aReg.user)) return setError('Este ID já está em uso.');
       
       admins.push(aReg);
       localStorage.setItem(STORAGE_KEYS.ADMINS, JSON.stringify(admins));
-      alert('Pet Shop cadastrado com sucesso! Agora faça login com seu novo usuário.');
-      setView('admin_login');
-      setALog({ user: aReg.user, pass: aReg.pass });
+      
+      // Auto-Login após registro
+      localStorage.setItem(STORAGE_KEYS.CURRENT_SESSION, JSON.stringify(aReg));
+      loadShopData(aReg, 'owner');
+      setCurrentScreen('home');
     };
 
     const handleAdminLogin = (e: React.FormEvent) => {
       e.preventDefault();
-      setError('');
       const admins = JSON.parse(localStorage.getItem(STORAGE_KEYS.ADMINS) || '[]');
       const found = admins.find((a: any) => a.user === aLog.user && a.pass === aLog.pass);
       if (found) {
@@ -154,8 +183,8 @@ export default function App() {
       <div className="h-screen flex flex-col p-8 justify-center items-center bg-[#0F172A] overflow-y-auto">
         <div className="text-center mb-10">
           <PawPrint size={64} className="text-[#22C55E] mx-auto mb-4" />
-          <h1 className="text-3xl font-black uppercase text-white tracking-tighter">Kinho <span className="text-[#22C55E]">Pet Shop</span></h1>
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Gerenciamento Profissional</p>
+          <h1 className="text-3xl font-black uppercase text-white">Kinho <span className="text-[#22C55E]">Pet Shop</span></h1>
+          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em] mt-2">Versão Profissional</p>
         </div>
 
         <div className="w-full max-w-sm space-y-4">
@@ -166,14 +195,14 @@ export default function App() {
               </button>
               
               <div className="h-px bg-slate-800 my-6 flex items-center justify-center">
-                <span className="bg-[#0F172A] px-4 text-[10px] font-black text-slate-600 uppercase tracking-widest">Área Administrativa</span>
+                <span className="bg-[#0F172A] px-4 text-[10px] font-black text-slate-600 uppercase tracking-widest">Acesso do Dono</span>
               </div>
 
-              <button onClick={() => setView('admin_login')} className="w-full bg-slate-800 py-5 rounded-[24px] font-bold text-slate-300 flex items-center justify-center gap-3 border border-slate-700/50 active:scale-95 transition-all">
+              <button onClick={() => setView('admin_login')} className="w-full bg-slate-800 py-5 rounded-[24px] font-bold text-slate-300 flex items-center justify-center gap-3 border border-slate-700 active:scale-95 transition-all">
                 <Lock size={18} /> ENTRAR NO PAINEL
               </button>
               
-              <button onClick={() => setView('admin_reg')} className="w-full bg-[#22C55E] py-5 rounded-[24px] font-black text-white flex items-center justify-center gap-3 shadow-xl shadow-emerald-500/20 active:scale-95 transition-all">
+              <button onClick={() => setView('admin_reg')} className="w-full bg-[#22C55E] py-5 rounded-[24px] font-black text-white flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all">
                 <PlusCircle size={22} /> CADASTRAR MEU PET SHOP
               </button>
             </div>
@@ -181,50 +210,40 @@ export default function App() {
 
           {view === 'customer' && (
             <div className="space-y-3 animate-in slide-in-from-right-4 duration-300">
-              <h2 className="text-xl font-bold text-center text-slate-400 mb-2">Entrar na Loja</h2>
-              <input placeholder="ID do Pet Shop (ex: pet_do_kinho)" className="w-full bg-slate-900 border border-slate-700 p-4 rounded-2xl text-white outline-none focus:border-blue-500" value={cUser.shopId} onChange={e => setCUser({...cUser, shopId: e.target.value.toLowerCase().trim()})} />
+              <h2 className="text-xl font-bold text-center text-slate-400 mb-2">Acessar Loja</h2>
+              <input placeholder="ID da Loja (ex: kinho_pet)" className="w-full bg-slate-900 border border-slate-700 p-4 rounded-2xl text-white outline-none focus:border-blue-500" value={cUser.shopId} onChange={e => setCUser({...cUser, shopId: e.target.value.toLowerCase().trim()})} />
               <input placeholder="Seu Nome" className="w-full bg-slate-900 border border-slate-700 p-4 rounded-2xl text-white outline-none focus:border-[#22C55E]" value={cUser.name} onChange={e => setCUser({...cUser, name: e.target.value})} />
-              <input placeholder="Nome do seu Pet" className="w-full bg-slate-900 border border-slate-700 p-4 rounded-2xl text-white outline-none focus:border-[#22C55E]" value={cUser.pet} onChange={e => setCUser({...cUser, pet: e.target.value})} />
-              {error && <p className="text-red-500 text-xs text-center font-bold bg-red-500/10 p-2 rounded-lg">{error}</p>}
-              <button onClick={handleCustomerJoin} className="w-full bg-[#22C55E] py-4 rounded-2xl font-black text-white shadow-xl">ACESSAR LOJA</button>
+              <input placeholder="Nome do Pet" className="w-full bg-slate-900 border border-slate-700 p-4 rounded-2xl text-white outline-none focus:border-[#22C55E]" value={cUser.pet} onChange={e => setCUser({...cUser, pet: e.target.value})} />
+              {error && <p className="text-red-500 text-xs text-center font-bold">{error}</p>}
+              <button onClick={handleCustomerJoin} className="w-full bg-[#22C55E] py-4 rounded-2xl font-black text-white shadow-xl">ENTRAR NA LOJA</button>
               <button onClick={() => setView('main')} className="w-full text-slate-500 text-sm font-bold mt-2">Voltar</button>
             </div>
           )}
 
           {view === 'admin_login' && (
             <form onSubmit={handleAdminLogin} className="space-y-3 animate-in slide-in-from-left-4 duration-300">
-              <h2 className="text-xl font-bold text-center text-slate-400 mb-2">Login de Proprietário</h2>
-              <input required placeholder="Seu Usuário (ID da Loja)" className="w-full bg-slate-900 border border-slate-700 p-4 rounded-2xl text-white outline-none" value={aLog.user} onChange={e => setALog({...aLog, user: e.target.value.toLowerCase().trim()})} />
+              <h2 className="text-xl font-bold text-center text-slate-400 mb-2">Login Administrativo</h2>
+              <input required placeholder="ID da Loja" className="w-full bg-slate-900 border border-slate-700 p-4 rounded-2xl text-white outline-none" value={aLog.user} onChange={e => setALog({...aLog, user: e.target.value.toLowerCase().trim()})} />
               <input required type="password" placeholder="Sua Senha" className="w-full bg-slate-900 border border-slate-700 p-4 rounded-2xl text-white outline-none" value={aLog.pass} onChange={e => setALog({...aLog, pass: e.target.value})} />
               {error && <p className="text-red-500 text-xs text-center font-bold">{error}</p>}
-              <button type="submit" className="w-full bg-blue-600 py-4 rounded-2xl font-black text-white">ENTRAR NO PAINEL</button>
-              <button type="button" onClick={() => setView('admin_reg')} className="w-full text-blue-400 text-xs font-bold text-center mt-2">Não tem conta? Cadastre seu Pet Shop aqui</button>
-              <button type="button" onClick={() => setView('main')} className="w-full text-slate-500 text-sm font-bold">Voltar</button>
+              <button type="submit" className="w-full bg-blue-600 py-4 rounded-2xl font-black text-white">ACESSAR PAINEL</button>
+              <button type="button" onClick={() => setView('main')} className="w-full text-slate-500 text-sm font-bold mt-2">Voltar</button>
             </form>
           )}
 
           {view === 'admin_reg' && (
             <form onSubmit={handleAdminRegister} className="space-y-3 animate-in fade-in duration-500 pb-10">
-              <h2 className="text-xl font-bold text-center text-slate-400 mb-2">Novo Pet Shop</h2>
-              <div className="space-y-1">
-                <p className="text-[9px] font-black text-slate-600 uppercase ml-2">Dados do Dono</p>
-                <input required placeholder="Seu Nome Completo" className="w-full bg-slate-900 border border-slate-700 p-4 rounded-2xl text-white outline-none" value={aReg.name} onChange={e => setAReg({...aReg, name: e.target.value})} />
+              <h2 className="text-xl font-bold text-center text-slate-400 mb-2">Registrar Pet Shop</h2>
+              <input required placeholder="Seu Nome" className="w-full bg-slate-900 border border-slate-700 p-4 rounded-2xl text-white outline-none" value={aReg.name} onChange={e => setAReg({...aReg, name: e.target.value})} />
+              <input required placeholder="Nome do Pet Shop" className="w-full bg-slate-900 border border-slate-700 p-4 rounded-2xl text-white outline-none" value={aReg.shop} onChange={e => setAReg({...aReg, shop: e.target.value})} />
+              <div className="bg-[#22C55E]/5 border border-[#22C55E]/20 p-4 rounded-2xl space-y-2">
+                <p className="text-[10px] font-black text-[#22C55E] uppercase tracking-widest">ID Único da Loja</p>
+                <input required placeholder="Ex: kinho_pet" className="w-full bg-transparent text-white font-bold outline-none" value={aReg.user} onChange={e => setAReg({...aReg, user: e.target.value.toLowerCase().replace(/\s/g, '_')})} />
               </div>
-              <div className="space-y-1">
-                <p className="text-[9px] font-black text-slate-600 uppercase ml-2">Nome da Loja</p>
-                <input required placeholder="Ex: Kinho Pet Shopping" className="w-full bg-slate-900 border border-slate-700 p-4 rounded-2xl text-white outline-none" value={aReg.shop} onChange={e => setAReg({...aReg, shop: e.target.value})} />
-              </div>
-              <div className="space-y-1">
-                <p className="text-[9px] font-black text-[#22C55E] uppercase ml-2">ID de Acesso (Dê este ID aos clientes)</p>
-                <input required placeholder="Ex: kinho_matriz" className="w-full bg-slate-900 border border-[#22C55E]/30 p-4 rounded-2xl text-white outline-none" value={aReg.user} onChange={e => setAReg({...aReg, user: e.target.value.toLowerCase().replace(/\s/g, '_')})} />
-              </div>
-              <div className="space-y-1">
-                <p className="text-[9px] font-black text-slate-600 uppercase ml-2">Sua Senha</p>
-                <input required type="password" placeholder="Mínimo 4 dígitos" className="w-full bg-slate-900 border border-slate-700 p-4 rounded-2xl text-white outline-none" value={aReg.pass} onChange={e => setAReg({...aReg, pass: e.target.value})} />
-              </div>
+              <input required type="password" placeholder="Senha Administrativa" className="w-full bg-slate-900 border border-slate-700 p-4 rounded-2xl text-white outline-none" value={aReg.pass} onChange={e => setAReg({...aReg, pass: e.target.value})} />
               {error && <p className="text-red-500 text-xs text-center font-bold">{error}</p>}
-              <button type="submit" className="w-full bg-[#22C55E] py-5 rounded-2xl font-black text-white shadow-xl mt-4">CRIAR MEU PET SHOP</button>
-              <button type="button" onClick={() => setView('main')} className="w-full text-slate-500 text-sm font-bold mt-2">Cancelar e Voltar</button>
+              <button type="submit" className="w-full bg-[#22C55E] py-5 rounded-2xl font-black text-white shadow-xl mt-4">CRIAR MEU NEGÓCIO</button>
+              <button type="button" onClick={() => setView('main')} className="w-full text-slate-500 text-sm font-bold mt-2">Voltar</button>
             </form>
           )}
         </div>
@@ -233,27 +252,40 @@ export default function App() {
   };
 
   const HomeScreen = () => (
-    <div className="p-6 space-y-8 pb-32">
+    <div className="p-6 space-y-8 pb-32 h-full overflow-y-auto">
       <header className="flex justify-between items-center animate-in fade-in duration-700">
         <div>
           <p className="text-[#22C55E] text-[10px] font-black uppercase tracking-[0.3em]">{activeAdmin?.shop || 'Visitando Loja'}</p>
           <h1 className="text-2xl font-black text-white">Olá, {userName}!</h1>
         </div>
-        <button className="bg-slate-800 p-3 rounded-2xl relative border border-slate-700/50 shadow-lg">
-          <Bell size={20} className="text-slate-300" />
+        <button className="bg-slate-800 p-3 rounded-2xl relative border border-slate-700/50 shadow-lg text-slate-400">
+          <Bell size={20} />
           {userRole === 'owner' && bookings.length > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>}
         </button>
       </header>
 
+      {/* ID DA LOJA - VISÍVEL PARA O DONO COMPARTILHAR */}
+      {userRole === 'owner' && (
+        <div className="bg-slate-800/60 p-5 rounded-3xl border border-slate-700 flex justify-between items-center">
+          <div>
+            <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Seu ID para Clientes</p>
+            <p className="text-[#22C55E] font-black text-lg font-mono">{activeAdmin.user}</p>
+          </div>
+          <button onClick={() => { navigator.clipboard.writeText(activeAdmin.user); alert('ID Copiado! Mande para seus clientes.'); }} className="bg-[#22C55E] p-3 rounded-2xl text-white shadow-lg active:scale-90 transition-all">
+            <Copy size={20} />
+          </button>
+        </div>
+      )}
+
       <div onClick={() => setCurrentScreen('booking')} className="bg-gradient-to-br from-[#22C55E] to-[#16a34a] p-7 rounded-[40px] shadow-2xl shadow-emerald-500/30 cursor-pointer active:scale-95 transition-all group overflow-hidden relative">
         <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-125 transition-transform"><Calendar size={120}/></div>
         <div className="relative z-10 space-y-3">
-          <h2 className="text-2xl font-black text-white">Serviços</h2>
+          <h2 className="text-2xl font-black text-white">Agenda</h2>
           <p className="text-white/80 text-sm max-w-[200px]">
-            {userRole === 'owner' ? `Existem ${bookings.length} agendamentos hoje.` : `Marque agora o banho do ${petName}.`}
+            {userRole === 'owner' ? `Existem ${bookings.length} agendamentos hoje.` : `Reserve agora o horário do ${petName}.`}
           </p>
           <button className="bg-white text-emerald-700 px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl">
-             {userRole === 'owner' ? 'VER AGENDA' : 'AGENDAR AGORA'}
+             {userRole === 'owner' ? 'GERENCIAR' : 'RESERVAR'}
           </button>
         </div>
       </div>
@@ -262,13 +294,13 @@ export default function App() {
         <div className="flex justify-between items-center mb-6 px-1">
           <h3 className="text-xl font-bold flex items-center gap-3 text-white"><ShoppingBag size={20} className="text-[#22C55E]" /> Shopping</h3>
           {userRole === 'owner' && (
-            <button onClick={() => { setSelectedProduct(null); setCurrentScreen('product_edit'); }} className="bg-[#22C55E] p-2.5 rounded-xl shadow-lg active:scale-90 transition-all text-white"><Plus size={20} /></button>
+            <button onClick={() => { setSelectedProduct(null); setCurrentScreen('product_edit'); }} className="bg-[#22C55E] p-2.5 rounded-xl shadow-lg text-white"><Plus size={20} /></button>
           )}
         </div>
         <div className="grid grid-cols-2 gap-4">
           {products.length === 0 ? (
             <div className="col-span-2 py-16 text-center bg-slate-800/10 rounded-[40px] border border-dashed border-slate-800 opacity-40">
-              <ShoppingBag size={48} className="mx-auto mb-4 text-slate-600" /><p className="font-bold text-slate-500">Nenhum produto cadastrado</p>
+              <ShoppingBag size={48} className="mx-auto mb-4 text-slate-600" /><p className="font-bold text-slate-500">Loja vazia</p>
             </div>
           ) : (
             products.map(p => (
@@ -286,104 +318,9 @@ export default function App() {
     </div>
   );
 
-  const BookingScreen = () => {
-    const [activeTab, setActiveTab] = useState<'list' | 'create'>(userRole === 'owner' ? 'list' : 'create');
-    const [selTime, setSelTime] = useState('');
-    const [pNameInput, setPNameInput] = useState(petName);
-    const [isDone, setIsDone] = useState(false);
-    const [manualTime, setManualTime] = useState('');
-
-    const handleConfirm = () => {
-      if (!selTime || !pNameInput) return;
-      const newBooking: Booking = {
-        id: Date.now().toString(),
-        petName: pNameInput,
-        service: 'Banho & Tosa',
-        date: 'Hoje',
-        time: selTime,
-        status: 'Confirmado'
-      };
-      setBookings(prev => [newBooking, ...prev]);
-      setIsDone(true);
-      setTimeout(() => { 
-        setIsDone(false); 
-        setActiveTab('list'); 
-        setSelTime(''); 
-        if(userRole === 'customer') setPetName(pNameInput);
-      }, 1500);
-    };
-
-    if (isDone) return (
-      <div className="h-full flex flex-col items-center justify-center p-8 animate-in zoom-in duration-500">
-        <CheckCircle2 size={100} className="text-[#22C55E] mb-6 drop-shadow-2xl" />
-        <h2 className="text-3xl font-black text-white">Confirmado!</h2>
-        <p className="text-slate-400 mt-2 text-center">Agendamento de <b>{pNameInput}</b> enviado.</p>
-      </div>
-    );
-
-    return (
-      <div className="p-6 space-y-6 pb-32 h-full">
-        <header className="flex items-center gap-4">
-          <button onClick={() => setCurrentScreen('home')} className="bg-slate-800 p-2.5 rounded-2xl text-slate-300 shadow-lg active:scale-90 transition-all"><ChevronLeft/></button>
-          <h1 className="text-2xl font-black text-white">Agenda</h1>
-        </header>
-
-        <div className="flex bg-slate-900/50 p-1.5 rounded-[28px] border border-slate-800 shadow-2xl">
-          <button onClick={() => setActiveTab('list')} className={`flex-1 py-4 rounded-2xl font-black text-[10px] tracking-widest transition-all ${activeTab === 'list' ? 'bg-[#22C55E] text-white' : 'text-slate-500'}`}>
-            LISTA
-          </button>
-          <button onClick={() => { setActiveTab('create'); setSelTime(''); }} className={`flex-1 py-4 rounded-2xl font-black text-[10px] tracking-widest transition-all ${activeTab === 'create' ? 'bg-[#22C55E] text-white' : 'text-slate-500'}`}>
-            AGENDAR
-          </button>
-        </div>
-
-        {activeTab === 'list' ? (
-          <div className="space-y-4 animate-in fade-in duration-500">
-            {bookings.length === 0 ? (
-              <div className="py-24 text-center opacity-20"><Calendar size={64} className="mx-auto mb-4 text-white" /><p className="font-bold text-white text-sm">Nada para hoje</p></div>
-            ) : (
-              bookings.map(b => (
-                <div key={b.id} className="bg-slate-800/40 p-5 rounded-[32px] border border-slate-700/30 flex justify-between items-center">
-                  <div className="space-y-1">
-                    <p className="font-black text-white text-lg flex items-center gap-2">{b.petName} <PawPrint size={14} className="text-[#22C55E]/50"/></p>
-                    <div className="flex items-center gap-2">
-                      <span className="bg-[#22C55E]/20 text-[#22C55E] text-[10px] font-black px-2 py-0.5 rounded-full">{b.time}</span>
-                      <span className="text-slate-500 text-[10px] uppercase font-bold tracking-tighter">{b.service}</span>
-                    </div>
-                  </div>
-                  {userRole === 'owner' && (
-                    <button onClick={() => setBookings(prev => prev.filter(x => x.id !== b.id))} className="p-3 bg-red-500/10 text-red-500 rounded-2xl"><Trash2 size={18}/></button>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        ) : (
-          <div className="space-y-8 animate-in slide-in-from-bottom-6 duration-500">
-            <div className="space-y-2">
-              <p className="text-[10px] uppercase font-black text-slate-500 ml-2">Confirme o Pet</p>
-              <input value={pNameInput} onChange={e => setPNameInput(e.target.value)} className="w-full bg-slate-900 p-6 rounded-[24px] font-black text-lg outline-none border border-slate-800 text-white" />
-            </div>
-            <div className="space-y-4">
-              <p className="text-[10px] uppercase font-black text-slate-500 ml-2">Horários</p>
-              <div className="grid grid-cols-3 gap-3">
-                {availableTimes.map(t => (
-                  <button key={t} onClick={() => setSelTime(t)} className={`w-full py-5 rounded-2xl font-black text-sm transition-all ${selTime === t ? 'bg-[#22C55E] text-white' : 'bg-slate-800 text-slate-500'}`}>{t}</button>
-                ))}
-              </div>
-            </div>
-            <button disabled={!selTime || !pNameInput} onClick={handleConfirm} className="w-full bg-[#22C55E] py-6 rounded-[32px] font-black text-white shadow-2xl shadow-emerald-500/40 disabled:opacity-20 transition-all text-lg">
-              CONFIRMAR AGENDAMENTO
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  };
-
   const ProfileScreen = () => (
-    <div className="p-8 space-y-10 animate-in fade-in duration-500 h-full">
-      <h1 className="text-2xl font-black text-white">Meu Perfil</h1>
+    <div className="p-8 space-y-10 animate-in fade-in duration-500 h-full overflow-y-auto pb-32">
+      <h1 className="text-2xl font-black text-white">Perfil</h1>
       <div className="text-center relative">
         <div className="relative inline-block">
           <div className="w-44 h-44 rounded-[72px] overflow-hidden border-4 border-[#22C55E] p-2 bg-slate-800 shadow-2xl">
@@ -399,45 +336,135 @@ export default function App() {
       <div className="space-y-4">
          {userRole === 'customer' && (
            <div className="bg-slate-800/40 p-6 rounded-[32px] border border-slate-700/50">
-             <h3 className="font-black mb-4 flex items-center gap-3 text-slate-300 uppercase text-xs tracking-widest"><Heart size={18} className="text-pink-500"/> Registro</h3>
+             <h3 className="font-black mb-4 flex items-center gap-3 text-slate-300 uppercase text-xs tracking-widest"><Heart size={18} className="text-pink-500"/> Registro Pet</h3>
              <div className="space-y-3">
                 <div className="bg-slate-900 p-4 rounded-2xl">
                   <p className="text-[10px] font-black text-slate-500 uppercase mb-1">Nome do Pet</p>
                   <input value={petName} onChange={e => setPetName(e.target.value)} className="w-full bg-transparent font-black text-white outline-none" />
                 </div>
                 <div className="bg-slate-900 p-4 rounded-2xl">
-                   <p className="text-[10px] font-black text-slate-500 uppercase mb-1">Dono</p>
+                   <p className="text-[10px] font-black text-slate-500 uppercase mb-1">Tutor</p>
                    <input value={userName} onChange={e => setUserName(e.target.value)} className="w-full bg-transparent font-black text-white outline-none" />
                 </div>
              </div>
            </div>
          )}
+
+         {/* INFOS DA LOJA PARA O CLIENTE */}
+         {userRole === 'customer' && activeAdmin && (
+           <div className="bg-blue-500/10 p-6 rounded-[32px] border border-blue-500/20 text-center">
+             <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Loja que você visita</p>
+             <p className="text-white font-black">{activeAdmin.shop}</p>
+             <p className="text-blue-500/50 text-[10px] font-mono mt-1">ID: {activeAdmin.user}</p>
+           </div>
+         )}
          
-         <button onClick={handleLogout} className="w-full flex items-center justify-center gap-3 bg-red-500/5 text-red-500 font-black py-7 rounded-[32px] border border-red-500/10 active:scale-95 transition-all mt-6">
-            <LogOut size={24} /> SAIR DA CONTA
-         </button>
+         <div className="grid grid-cols-1 gap-4 pt-6">
+            <button onClick={handleLogout} className="w-full flex items-center justify-center gap-3 bg-red-500/10 text-red-500 font-black py-7 rounded-[32px] border border-red-500/20 active:scale-95 transition-all">
+                <LogOut size={24} /> SAIR / TROCAR LOJA
+            </button>
+         </div>
       </div>
     </div>
   );
 
+  // --- COMPONENTES AUXILIARES (Booking, Detail, etc) ---
+  // Mantidos do código anterior mas com correções de navegação
+
+  const BookingScreen = () => {
+    const [activeTab, setActiveTab] = useState<'list' | 'create'>(userRole === 'owner' ? 'list' : 'create');
+    const [selTime, setSelTime] = useState('');
+    const [pNameInput, setPNameInput] = useState(petName);
+    const [isDone, setIsDone] = useState(false);
+
+    const handleConfirm = () => {
+      if (!selTime || !pNameInput) return;
+      const newBooking: Booking = { id: Date.now().toString(), petName: pNameInput, service: 'Banho & Tosa', date: 'Hoje', time: selTime, status: 'Confirmado' };
+      setBookings(prev => [newBooking, ...prev]);
+      setIsDone(true);
+      setTimeout(() => { setIsDone(false); setActiveTab('list'); setSelTime(''); if(userRole === 'customer') setPetName(pNameInput); }, 1500);
+    };
+
+    if (isDone) return (
+      <div className="h-full flex flex-col items-center justify-center p-8 animate-in zoom-in duration-500">
+        <CheckCircle2 size={100} className="text-[#22C55E] mb-6 shadow-2xl" />
+        <h2 className="text-3xl font-black text-white">Confirmado!</h2>
+        <p className="text-slate-400 mt-2 text-center font-medium">Horário reservado com sucesso.</p>
+      </div>
+    );
+
+    return (
+      <div className="p-6 space-y-6 pb-32 h-full overflow-y-auto">
+        <header className="flex items-center gap-4">
+          <button onClick={() => setCurrentScreen('home')} className="bg-slate-800 p-2.5 rounded-2xl text-slate-300 shadow-lg"><ChevronLeft/></button>
+          <h1 className="text-2xl font-black text-white">Serviços</h1>
+        </header>
+
+        <div className="flex bg-slate-900/50 p-1.5 rounded-[28px] border border-slate-800">
+          <button onClick={() => setActiveTab('list')} className={`flex-1 py-4 rounded-2xl font-black text-[10px] tracking-widest transition-all ${activeTab === 'list' ? 'bg-[#22C55E] text-white' : 'text-slate-500'}`}>VER LISTA</button>
+          <button onClick={() => setActiveTab('create')} className={`flex-1 py-4 rounded-2xl font-black text-[10px] tracking-widest transition-all ${activeTab === 'create' ? 'bg-[#22C55E] text-white' : 'text-slate-500'}`}>NOVO HORÁRIO</button>
+        </div>
+
+        {activeTab === 'list' ? (
+          <div className="space-y-4">
+            {bookings.length === 0 ? (
+              <div className="py-24 text-center opacity-20"><Calendar size={64} className="mx-auto mb-4 text-white" /><p className="font-bold text-white">Agenda livre</p></div>
+            ) : (
+              bookings.map(b => (
+                <div key={b.id} className="bg-slate-800/40 p-5 rounded-[32px] border border-slate-700/30 flex justify-between items-center">
+                  <div className="space-y-1">
+                    <p className="font-black text-white text-lg">{b.petName}</p>
+                    <div className="flex items-center gap-2">
+                      <span className="bg-[#22C55E]/20 text-[#22C55E] text-[10px] font-black px-2 py-0.5 rounded-full">{b.time}</span>
+                      <span className="text-slate-500 text-[10px] uppercase font-bold">{b.service}</span>
+                    </div>
+                  </div>
+                  {userRole === 'owner' && (
+                    <button onClick={() => setBookings(prev => prev.filter(x => x.id !== b.id))} className="p-3 bg-red-500/10 text-red-500 rounded-2xl"><Trash2 size={18}/></button>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        ) : (
+          <div className="space-y-8 animate-in slide-in-from-bottom-6 duration-500">
+            <div className="space-y-2">
+              <p className="text-[10px] uppercase font-black text-slate-500 ml-2 tracking-widest">Nome do Pet</p>
+              <input value={pNameInput} onChange={e => setPNameInput(e.target.value)} className="w-full bg-slate-900 p-6 rounded-[24px] font-black text-lg text-white outline-none border border-slate-800 focus:border-[#22C55E]" />
+            </div>
+            <div className="space-y-4">
+              <p className="text-[10px] uppercase font-black text-slate-500 ml-2 tracking-widest">Escolha o Horário</p>
+              <div className="grid grid-cols-3 gap-3">
+                {availableTimes.map(t => (
+                  <button key={t} onClick={() => setSelTime(t)} className={`w-full py-5 rounded-2xl font-black text-sm transition-all ${selTime === t ? 'bg-[#22C55E] text-white shadow-xl shadow-emerald-500/20' : 'bg-slate-800 text-slate-500'}`}>{t}</button>
+                ))}
+              </div>
+            </div>
+            <button disabled={!selTime || !pNameInput} onClick={handleConfirm} className="w-full bg-[#22C55E] py-6 rounded-[32px] font-black text-white shadow-2xl disabled:opacity-20 text-lg">CONFIRMAR AGORA</button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const ProductDetail = () => {
     if (!selectedProduct) return null;
     return (
-      <div className="animate-in fade-in duration-500 h-full overflow-y-auto bg-[#0F172A]">
+      <div className="animate-in fade-in duration-500 h-full overflow-y-auto bg-[#0F172A] pb-32">
         <div className="relative h-80">
           <img src={selectedProduct.image || 'https://via.placeholder.com/400'} className="w-full h-full object-cover" />
           <button onClick={() => setCurrentScreen('home')} className="absolute top-6 left-6 bg-slate-900/50 p-3 rounded-2xl text-white backdrop-blur-md border border-white/10 shadow-xl"><ChevronLeft/></button>
         </div>
         <div className="p-8 space-y-6 -mt-10 bg-[#0F172A] rounded-t-[48px] relative z-10 shadow-2xl min-h-[60vh]">
           <div className="flex justify-between items-start">
-             <h1 className="text-3xl font-black text-white">{selectedProduct.name}</h1>
+             <h1 className="text-3xl font-black text-white leading-tight">{selectedProduct.name}</h1>
              <p className="text-[#22C55E] text-3xl font-black">R$ {selectedProduct.price}</p>
           </div>
-          <p className="text-slate-400 leading-relaxed">{selectedProduct.description || 'Produto profissional selecionado para seu pet.'}</p>
+          <p className="text-slate-400 leading-relaxed font-medium">{selectedProduct.description || 'Produto profissional selecionado para seu pet.'}</p>
           {userRole === 'owner' && (
-            <button onClick={() => setCurrentScreen('product_edit')} className="w-full bg-slate-800 p-5 rounded-[32px] font-black border border-slate-700 text-slate-300">EDITAR</button>
+            <button onClick={() => setCurrentScreen('product_edit')} className="w-full bg-slate-800 p-5 rounded-[32px] font-black border border-slate-700 text-slate-300">EDITAR PRODUTO</button>
           )}
-          <button className="w-full bg-[#22C55E] py-6 rounded-[32px] font-black text-white shadow-2xl text-lg"><ShoppingCart size={24} className="inline mr-2"/> COMPRAR</button>
+          <button className="w-full bg-[#22C55E] py-6 rounded-[32px] font-black text-white shadow-2xl text-lg flex items-center justify-center gap-3"><ShoppingCart size={24}/> ADICIONAR</button>
         </div>
       </div>
     );
@@ -452,17 +479,26 @@ export default function App() {
       setCurrentScreen('home');
     };
     return (
-      <div className="p-6 space-y-8 h-full animate-in slide-in-from-bottom-6 duration-500">
+      <div className="p-6 space-y-8 h-full animate-in slide-in-from-bottom-6 duration-500 overflow-y-auto pb-32">
         <header className="flex items-center gap-4">
           <button onClick={() => setCurrentScreen('home')} className="bg-slate-800 p-2.5 rounded-2xl text-slate-300"><ChevronLeft/></button>
-          <h1 className="text-2xl font-black text-white">Editar Produto</h1>
+          <h1 className="text-2xl font-black text-white">Editar Shopping</h1>
         </header>
         <form onSubmit={handleSubmit} className="space-y-6">
-          <input required placeholder="Nome" className="w-full bg-slate-900 p-5 rounded-[24px] text-white border border-slate-800" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-          <input required placeholder="Preço" className="w-full bg-slate-900 p-5 rounded-[24px] text-white border border-slate-800" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} />
-          <input placeholder="URL Foto" className="w-full bg-slate-900 p-5 rounded-[24px] text-white border border-slate-800" value={formData.image} onChange={e => setFormData({...formData, image: e.target.value})} />
-          <button type="submit" className="w-full bg-[#22C55E] py-6 rounded-[32px] font-black text-white shadow-2xl">SALVAR</button>
-          {formData.id && <button type="button" onClick={() => { setProducts(prev => prev.filter(p => p.id !== formData.id)); setCurrentScreen('home'); }} className="w-full bg-red-500/10 text-red-500 py-6 rounded-[32px] font-black">EXCLUIR</button>}
+          <div className="space-y-2">
+            <p className="text-[10px] uppercase font-black text-slate-500 ml-2">Título</p>
+            <input required placeholder="Nome do produto" className="w-full bg-slate-900 p-5 rounded-[24px] text-white border border-slate-800" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+          </div>
+          <div className="space-y-2">
+            <p className="text-[10px] uppercase font-black text-slate-500 ml-2">Preço (R$)</p>
+            <input required placeholder="0,00" className="w-full bg-slate-900 p-5 rounded-[24px] text-white border border-slate-800" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} />
+          </div>
+          <div className="space-y-2">
+            <p className="text-[10px] uppercase font-black text-slate-500 ml-2">Imagem (URL)</p>
+            <input placeholder="https://imagem.jpg" className="w-full bg-slate-900 p-5 rounded-[24px] text-white border border-slate-800" value={formData.image} onChange={e => setFormData({...formData, image: e.target.value})} />
+          </div>
+          <button type="submit" className="w-full bg-[#22C55E] py-6 rounded-[32px] font-black text-white shadow-2xl text-lg mt-4">SALVAR PRODUTO</button>
+          {formData.id && <button type="button" onClick={() => { setProducts(prev => prev.filter(p => p.id !== formData.id)); setCurrentScreen('home'); }} className="w-full bg-red-500/10 text-red-500 py-6 rounded-[32px] font-black mt-2">EXCLUIR DO SHOPPING</button>}
         </form>
       </div>
     );
@@ -470,7 +506,7 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen bg-[#0F172A] text-white overflow-hidden max-w-md mx-auto relative shadow-2xl border-x border-slate-800/50">
-      <div className="flex-1 overflow-y-auto custom-scrollbar pb-24 h-full relative z-0">
+      <div className="flex-1 overflow-y-auto custom-scrollbar h-full relative z-0">
         {currentScreen === 'splash' && <SplashScreen />}
         {currentScreen === 'login' && <LoginScreen />}
         {currentScreen === 'home' && <HomeScreen />}
