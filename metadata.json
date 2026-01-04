@@ -1,0 +1,7 @@
+{
+  "name": "Kinho Pet Shopping",
+  "description": "O shopping completo para o seu pet: agendamentos, loja e registros de saúde.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

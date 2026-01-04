@@ -1,0 +1,22 @@
+
+{
+  "short_name": "KinhoPet",
+  "name": "Kinho Pet Shopping",
+  "description": "O shopping completo para o seu melhor amigo",
+  "icons": [
+    {
+      "src": "https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&q=80&w=192",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&q=80&w=512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#0F172A",
+  "background_color": "#0F172A"
+}
