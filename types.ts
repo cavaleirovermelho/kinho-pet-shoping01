@@ -25,5 +25,5 @@ export interface Booking {
   service: string;
   date: string;
   time: string;
-  status: 'Confirmado' | 'Pendente' | 'Concluído';
+  status?: 'Confirmado' | 'Pendente' | 'Concluído';
 }

@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { PawPrint, UserPlus, Lock, Store, User, Heart, ArrowRight, UserCheck } from 'lucide-react';
+import { PawPrint, UserPlus, Lock } from 'lucide-react';
 import { UserRole } from '../../types';
 
 interface Props {
@@ -40,7 +40,10 @@ const LoginScreen: React.FC<Props> = ({ onLogin }) => {
         <div className="inline-flex p-4 bg-[#22C55E]/10 rounded-3xl mb-6">
           <PawPrint size={48} className="text-[#22C55E]" />
         </div>
-        <h2 className="text-4xl font-black">Kinho <span className="text-[#22C55E]">Pet Shop</span></h2>
+        <h2 className="text-4xl font-black text-white text-center">
+          Kinho <span className="text-[#22C55E]">Pet Shopping</span>
+        </h2>
+        <p className="text-slate-500 font-bold text-[10px] uppercase tracking-[0.3em] mt-2">Acesse sua conta</p>
       </div>
 
       <div className="w-full max-w-sm mx-auto">
@@ -55,22 +58,22 @@ const LoginScreen: React.FC<Props> = ({ onLogin }) => {
           </div>
         ) : view === 'customer' ? (
           <form onSubmit={() => onLogin('customer', customerData.userName, customerData.petName)} className="space-y-4">
-             <input required type="text" placeholder="Seu nome" value={customerData.userName} onChange={e => setCustomerData({...customerData, userName: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4" />
-             <input required type="text" placeholder="Nome do Pet" value={customerData.petName} onChange={e => setCustomerData({...customerData, petName: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4" />
+             <input required type="text" placeholder="Seu nome" value={customerData.userName} onChange={e => setCustomerData({...customerData, userName: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white" />
+             <input required type="text" placeholder="Nome do Pet" value={customerData.petName} onChange={e => setCustomerData({...customerData, petName: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white" />
              <button type="submit" className="w-full bg-[#22C55E] py-4 rounded-xl font-bold">Entrar</button>
              <button onClick={() => setView('options')} className="w-full text-slate-500 text-sm">Voltar</button>
           </form>
         ) : (
           <form onSubmit={view === 'adminLogin' ? handleAdminLogin : handleAdminRegister} className="space-y-4">
-             <input required type="text" placeholder="Usuário" value={view === 'adminLogin' ? loginCreds.user : adminFormData.user} onChange={e => view === 'adminLogin' ? setLoginCreds({...loginCreds, user: e.target.value}) : setAdminFormData({...adminFormData, user: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4" />
-             <input required type="password" placeholder="Senha" value={view === 'adminLogin' ? loginCreds.pass : adminFormData.pass} onChange={e => view === 'adminLogin' ? setLoginCreds({...loginCreds, pass: e.target.value}) : setAdminFormData({...adminFormData, pass: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4" />
-             {view === 'adminRegister' && <input required type="password" placeholder="Confirmar Senha" value={adminFormData.confirmPass} onChange={e => setAdminFormData({...adminFormData, confirmPass: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4" />}
+             <input required type="text" placeholder="Usuário" value={view === 'adminLogin' ? loginCreds.user : adminFormData.user} onChange={e => view === 'adminLogin' ? setLoginCreds({...loginCreds, user: e.target.value}) : setAdminFormData({...adminFormData, user: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white" />
+             <input required type="password" placeholder="Senha" value={view === 'adminLogin' ? loginCreds.pass : adminFormData.pass} onChange={e => view === 'adminLogin' ? setLoginCreds({...loginCreds, pass: e.target.value}) : setAdminFormData({...adminFormData, pass: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white" />
+             {view === 'adminRegister' && <input required type="password" placeholder="Confirmar Senha" value={adminFormData.confirmPass} onChange={e => setAdminFormData({...adminFormData, confirmPass: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-white" />}
              <button type="submit" className="w-full bg-blue-600 py-4 rounded-xl font-bold">Confirmar</button>
              <button onClick={() => setView('options')} className="w-full text-slate-500 text-sm">Voltar</button>
           </form>
         )}
       </div>
-      <p className="text-center text-slate-600 text-[10px] pb-4 uppercase tracking-widest">Kinho Pet Shopping • v1.0</p>
+      <p className="text-center text-slate-600 text-[10px] pb-4 uppercase tracking-widest">Kinho Pet Shopping • v1.1</p>
     </div>
   );
 };
